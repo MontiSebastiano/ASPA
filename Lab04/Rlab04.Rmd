@@ -1,0 +1,554 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+library(tibble)
+library(tidyverse)
+library(lubridate)
+library(ISOweek)
+library(plotly)
+```
+
+```{r}
+#EXERCISE 1
+
+mobility_df <- as_tibble(readr::read_csv("Global_Mobility_Report.csv", col_names=TRUE))
+mobility_df
+```
+
+```{r}
+#Checking countries in the dataframe
+countries <- mobility_df[!duplicated(mobility_df$country_region), "country_region"]
+#countries
+
+#Selecting data belonging to some European countries
+mobility_DFI <- mobility_df %>% filter(country_region == "Germany" | country_region == "France" | country_region == "Italy")
+mobility_DFI <- mobility_DFI[!grepl("", mobility_DFI$sub_region_1), ]
+
+#Plotting raw features
+fig1 <- plot_ly(data = mobility_DFI, x = ~date, y = ~retail_and_recreation_percent_change_from_baseline, color = ~country_region, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+fig2 <- plot_ly(data = mobility_DFI, x = ~date, y = ~grocery_and_pharmacy_percent_change_from_baseline, color = ~country_region, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+fig3 <- plot_ly(data = mobility_DFI, x = ~date, y = ~parks_percent_change_from_baseline, color = ~country_region, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+fig4 <- plot_ly(data = mobility_DFI, x = ~date, y = ~transit_stations_percent_change_from_baseline, color = ~country_region, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+fig5 <- plot_ly(data = mobility_DFI, x = ~date, y = ~workplaces_percent_change_from_baseline, color = ~country_region, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title="Date"), yaxis=list(title=""))
+
+fig6 <- plot_ly(data = mobility_DFI, x = ~date, y = ~residential_percent_change_from_baseline, color = ~country_region, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title="Date"), yaxis=list(title=""))
+
+Fig <- plotly::subplot(fig1, fig2, fig3, fig4, fig5, fig6, nrows = 3, titleY = TRUE, titleX = TRUE, margin = 0.1, which_layout = "Merge") 
+Fig <- Fig %>% layout(title = '<b>Community mobility</b>', legend=list(title=list(text="<b>Countries</b>")))
+annotations = list( 
+  list( 
+    x = 0.2,  
+    y = 1.0,  
+    text = "<b>Retail and recreation</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.8,  
+    y = 1.0,  
+    text = "<b>Grocery and pharmacy</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),  
+  list( 
+    x = 0.2,  
+    y = 0.60,  
+    text = "<b>Parks</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.8,  
+    y = 0.60,  
+    text = "<b>Transit stations</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.2,  
+    y = 0.24,  
+    text = "<b>Workplaces</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.8,  
+    y = 0.24,  
+    text = "<b>Residential</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  )
+)
+Fig <- Fig %>%layout(annotations = annotations) 
+Fig
+```
+
+```{r}
+#Adding information on weeks, months and years inside the dataframe
+mobility_DFI <- mobility_DFI %>% add_column(week_date = week(mobility_DFI$date), .after = "date") 
+mobility_DFI <- mobility_DFI %>% add_column(month_date = month(mobility_DFI$date), .after = "week_date") 
+mobility_DFI <- mobility_DFI %>% add_column(year_date = year(mobility_DFI$date), .after = "month_date") 
+```
+
+```{r}
+#Computing averages over weeks and months
+mobility_DFI_W <- aggregate(list(mobility_DFI$retail_and_recreation_percent_change_from_baseline, mobility_DFI$grocery_and_pharmacy_percent_change_from_baseline, mobility_DFI$parks_percent_change_from_baseline, mobility_DFI$transit_stations_percent_change_from_baseline, mobility_DFI$workplaces_percent_change_from_baseline, mobility_DFI$residential_percent_change_from_baseline), by=list(mobility_DFI$country_region, mobility_DFI$week_date, mobility_DFI$year_date), FUN=mean)
+
+mobility_DFI_M <- aggregate(list(mobility_DFI$retail_and_recreation_percent_change_from_baseline, mobility_DFI$grocery_and_pharmacy_percent_change_from_baseline, mobility_DFI$parks_percent_change_from_baseline, mobility_DFI$transit_stations_percent_change_from_baseline, mobility_DFI$workplaces_percent_change_from_baseline, mobility_DFI$residential_percent_change_from_baseline), by=list(mobility_DFI$country_region, mobility_DFI$month_date, mobility_DFI$year_date), FUN=mean)
+
+#New column names
+new_names_W <- c("country", "week_date", "year_date", "retail_and_recreation", "grocery_and_pharmacy", "parks", "transit_stations", "workplaces", "residential")
+new_names_M <- c("country", "month_date", "year_date", "retail_and_recreation", "grocery_and_pharmacy", "parks", "transit_stations", "workplaces", "residential")
+names(mobility_DFI_W) <- new_names_W
+names(mobility_DFI_M) <- new_names_M
+```
+
+```{r}
+#Reconstructing date inforation on weekly and monthly averaged data
+new_date_W <- ISOweek2date(paste0(mobility_DFI_W$year_date, "-W", sprintf("%02d", mobility_DFI_W$week_date), "-1"))
+mobility_DFI_W <- mobility_DFI_W %>% add_column(new_date = new_date_W, .after = "country")
+
+new_date_M <- parse_date_time(paste(mobility_DFI_M$month_date, mobility_DFI_M$year_date, sep = "-"), "my")
+mobility_DFI_M <- mobility_DFI_M %>% add_column(new_date = new_date_M, .after = "country")
+```
+
+```{r}
+#Plotting monthly averaged features
+w1 <- plot_ly(data = mobility_DFI_W, x = ~new_date, y = ~retail_and_recreation, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+w2 <- plot_ly(data = mobility_DFI_W, x = ~new_date, y = ~grocery_and_pharmacy, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+w3 <- plot_ly(data = mobility_DFI_W, x = ~new_date, y = ~parks, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+w4 <- plot_ly(data = mobility_DFI_W, x = ~new_date, y = ~transit_stations, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+w5 <- plot_ly(data = mobility_DFI_W, x = ~new_date, y = ~workplaces, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title="Date"), yaxis=list(title=""))
+
+w6 <- plot_ly(data = mobility_DFI_W, x = ~new_date, y = ~residential, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title="Date"), yaxis=list(title=""))
+
+Fig <- plotly::subplot(w1, w2, w3, w4, w5, w6, nrows = 3, titleY = TRUE, titleX = TRUE, margin = 0.1, which_layout = "Merge") 
+Fig <- Fig %>% layout(title = '<b>Community mobility</b>', legend=list(title=list(text="<b>Countries</b>")))
+annotations = list( 
+  list( 
+    x = 0.2,  
+    y = 1.0,  
+    text = "<b>Retail and recreation</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.8,  
+    y = 1.0,  
+    text = "<b>Grocery and pharmacy</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),  
+  list( 
+    x = 0.2,  
+    y = 0.60,  
+    text = "<b>Parks</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.8,  
+    y = 0.60,  
+    text = "<b>Transit stations</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.2,  
+    y = 0.24,  
+    text = "<b>Workplaces</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.8,  
+    y = 0.24,  
+    text = "<b>Residential</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  )
+)
+Fig <- Fig %>%layout(annotations = annotations) 
+Fig
+```
+
+```{r}
+#Plotting monthly averaged features
+m1 <- plot_ly(data = mobility_DFI_M, x = ~new_date, y = ~retail_and_recreation, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+m2 <- plot_ly(data = mobility_DFI_M, x = ~new_date, y = ~grocery_and_pharmacy, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+m3 <- plot_ly(data = mobility_DFI_M, x = ~new_date, y = ~parks, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+m4 <- plot_ly(data = mobility_DFI_M, x = ~new_date, y = ~transit_stations, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title=""), yaxis=list(title=""))
+
+m5 <- plot_ly(data = mobility_DFI_M, x = ~new_date, y = ~workplaces, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title="Date"), yaxis=list(title=""))
+
+m6 <- plot_ly(data = mobility_DFI_M, x = ~new_date, y = ~residential, color = ~country, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title="Date"), yaxis=list(title=""))
+
+Fig <- plotly::subplot(m1, m2, m3, m4, m5, m6, nrows = 3, titleY = TRUE, titleX = TRUE, margin = 0.1, which_layout = "Merge") 
+Fig <- Fig %>% layout(title = '<b>Community mobility</b>', legend=list(title=list(text="<b>Countries</b>")))
+annotations = list( 
+  list( 
+    x = 0.2,  
+    y = 1.0,  
+    text = "<b>Retail and recreation</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.8,  
+    y = 1.0,  
+    text = "<b>Grocery and pharmacy</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),  
+  list( 
+    x = 0.2,  
+    y = 0.60,  
+    text = "<b>Parks</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.8,  
+    y = 0.60,  
+    text = "<b>Transit stations</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.2,  
+    y = 0.24,  
+    text = "<b>Workplaces</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.8,  
+    y = 0.24,  
+    text = "<b>Residential</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  )
+)
+Fig <- Fig %>%layout(annotations = annotations) 
+Fig
+```
+
+```{r}
+#EXERCISE 2
+
+middle_square <- function(x, y){
+    input <- unlist(strsplit(as.character(x),""))
+    output <- unlist(strsplit(as.character(x^2),""))
+    len_input <- length(input)
+    len_output <- length(output)
+    len_diff <- len_output - len_input
+    rand_num <- c()
+    
+    for (j in 1:y){
+      
+      if (len_diff%%2 == 0){
+        out <- (paste(output[(len_diff/2+1):(len_output-(len_diff/2))], collapse=""))
+      }
+      else {
+        out <- (paste(output[((len_diff+1)/2):(len_output-((len_diff+1)/2))], collapse=""))
+      }
+      
+      rand_num <- append(rand_num, out)
+      output <- unlist(strsplit(as.character(as.numeric(out)^2),""))
+      len_output <- length(output)
+      len_diff <- len_output - len_input 
+    }
+    
+    return(rand_num)
+}
+
+x <- readline("Insert the seed: ")
+x <- as.numeric(unlist(x))
+y <- readline("Number of random numbers to generate: ")
+y<- as.numeric(unlist(y))
+
+middle_square(x,y)
+```
+
+
+```{r}
+#EXERCISE 3
+
+#Defining:
+#p = 29/150 as the probability that one person, picked at random, read the last issue of the journal; 
+#q = 1 - p as the probability that one person, picked at random, did not read the last issue of the journal; 
+#n = 150 as the number of interviewed people.
+#The number of people who read the last issue of the journal follows a binomial distribution with p probability of success and n trials.
+
+#Assuming that the prior is uniform, the posterior is proportional to the likelihood, a part from a normalization factor.
+
+n <- 150
+success <- 29
+p <- success / n 
+N <- seq.int(0, 150)
+x <- seq(0, 1, 0.01)
+
+#Computing likelihood and posterior
+likelihood <- dbinom(N, n, p)                   
+posterior <- dbinom(success, n, x)          
+Norm_posterior <- (length(x) * posterior) / sum(posterior)
+
+#Plotting
+lik <- plot_ly(x = N, y = likelihood, colors = "Set1", type = "scatter", mode = 'lines+markers') %>% layout(xaxis=list(title="N"), yaxis=list(title=""))
+
+post <- plot_ly(x = x, y = Norm_posterior, colors = "Set1", type = "scatter", mode = 'lines') %>% layout(xaxis=list(title="x"), yaxis=list(title=""))
+
+Fig <- plotly::subplot(lik, post, nrows = 1, titleY = TRUE, titleX = TRUE, margin = 0.1, which_layout = "Merge") 
+
+annotations = list( 
+  list( 
+    x = 0.25,  
+    y = 1.0,  
+    text = "<b>Likelihood</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.8,  
+    y = 1,  
+    text = "<b>Normalized posterior</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  )
+)
+
+Fig <- Fig %>%layout(annotations = annotations) 
+Fig
+```
+
+```{r}
+#EXERCISE 4
+
+flip <- c('T', 'T', 'T', 'T', 'T', 'H', 'T', 'T', 'H', 'H', 'T', 'T', 'H', 'H', 'H', 'T', 'H','T', 'H', 'T', 'H', 'H', 'T', 'H', 'T', 'H','T', 'H', 'H', 'H')
+
+n <- 30  #Number of trials
+r <- sum(flip == 'H')   #Number heads, associated to sucess
+
+alpha_prior <- 10
+beta_prior  <- 10
+
+n_samples <- 2000
+delta_p <- 1/n_samples
+
+p <- seq(from = 1/(2*n_samples), by = 1/n_samples, length.out = n_samples)
+x <- seq(0, 30)
+
+likelihood <- dbinom(x, n, 1/2)
+prior_beta <- dbeta(p, alpha_prior, beta_prior)
+prior_flat <- dunif(p, 0, 1)                    
+post_beta <- dbeta(x=p, alpha_prior+r, beta_prior+n-r)
+flat_p <- dbinom(x=r, size=n, prob=p)
+post_flat <- flat_p/(delta_p * sum(flat_p))
+
+#Plotting
+lik <- plot_ly(x = x, y = likelihood, type = "scatter", mode = 'lines', name = "Likelihood") %>% layout(xaxis=list(title="x"), yaxis=list(title="P(x|p,n,M)"))
+
+pri <- plot_ly(x = p, y = prior_flat, type = "scatter", mode = 'lines', name = "Uniform") %>% layout(xaxis=list(title="p"), yaxis=list(title="P(p|M)"))
+pri <- pri %>% add_trace(x = p, y = prior_beta, type = "scatter", mode = 'lines', name = "Beta")
+
+post <- plot_ly(x = p, y = post_flat, type = "scatter", mode = 'lines', name = "Uniform") %>% layout(xaxis=list(title="p"), yaxis=list(title="P(p|x,n,M)"))
+post <- post %>% add_trace(x = p, y = post_beta, type = "scatter", mode = 'lines', nae = "Beta")
+
+Fig <- plotly::subplot(lik, pri, post, nrows = 2, titleY = TRUE, titleX = TRUE, margin = 0.1, which_layout = "Merge") 
+
+annotations = list( 
+  list( 
+    x = 0.2,  
+    y = 1.0,  
+    text = "<b>Likelihood</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.8,  
+    y = 1,  
+    text = "<b>Prior</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE
+  ),
+  list( 
+    x = 0.2,  
+    y = 0.4,  
+    text = "<b>Posterior</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  )
+)
+
+Fig <- Fig %>%layout(annotations = annotations) 
+Fig
+```
+
+```{r}
+#Considering symmetric credibility intervals, the most probable value is the mode of the distribution
+ci <- 0.95
+mode_beta <- p[which.max(post_beta)]
+p1_beta <- qbeta(1 - ci, alpha_prior+r, beta_prior+n-r)
+p2_beta <- qbeta(ci, alpha_prior+r, beta_prior+n-r)
+mode_flat <- p[which.max(post_flat)]
+cum_flat <- cumsum(post_flat)/n_samples
+p1_flat <- p[cum_flat >= (1 - ci)][1]
+p2_flat <- p[cum_flat >= ci][1]
+
+#Plotting
+plot(p, post_flat, xaxs='i', yaxs='i', type='l', lwd = 3, col = 'navy', main="Credibility interval for Uniform prior", cex.main=1.5, xlim=c(-0.05,1.05), ylim=c(0,6.4), xlab="p", ylab="P(p|x,n,M)", cex.lab=1.2, las=1)
+abline(v=mode_flat, col='black', lty=2)
+abline(v=p1_flat, col='red', lty=4)
+abline(v=p2_flat, col='red', lty=4)
+legend(0.58, 6.4, col=c("red", "black", "red"), lty=c(4, 2, 4), bty='n', cex=1.2, x.intersp=0.1, y.intersp=1.2, legend = c(parse(text = paste0('p[1] == ', round(p1_flat, 3))), parse(text = paste0('Mo == ', round(mode_flat, 3))), parse(text = paste0('p[2] == ', round(p2_flat, 3)))))
+grid()
+
+plot(p, post_beta, xaxs='i', yaxs='i', type='l', lwd = 3, col = 'navy', main="Credibility Interval for Beta prior", cex.main=1.5, xlim=c(-0.05,1.05), ylim=c(0,6.4), xlab="p", ylab="P(p|x,n,M)", cex.lab=1.2, las=1)
+abline(v=mode_beta, col='black', lty=2)
+abline(v=p1_beta, col='red', lty=4)
+abline(v=p2_beta, col='red', lty=4)
+legend(0.58, 6.4, col=c("red", "black", "red"), lty=c(4, 2, 4), bty='n', cex=1.2, x.intersp=0.1, y.intersp=1.2, legend = c(parse(text = paste0('p[1] == ', round(p1_beta, 3))), parse(text = paste0('Mo == ', round(mode_beta, 3))), parse(text = paste0('p[2] == ', round(p2_beta, 3)))))
+grid()
+```
+
+```{r}
+#starting number of successes
+r <- 0   
+#starting with a uniform prior
+prior <- dbeta(p, 1, 1)
+#empty vectors which will contain confidence intervals boundaries and Modes
+mode <- c(1:30)
+p1 <- c(1:30)
+p2 <- c(1:30)
+#List of coin tosses with H=1 and T=0
+flips <- c(0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1)
+
+for(toss in 1:30){
+    r <- flips[toss]
+    
+    #likelihood
+    l <- dbinom(r, 1, p)
+    supp <- l*prior
+    posterior <- supp/(delta_p*sum(supp))
+    
+    mode[toss] <- p[which.max(posterior)]
+    cumulative <- cumsum(posterior)/n_samples
+    p1[toss] <- p[cumulative >= (1 - ci)][1]
+    p2[toss] <- p[cumulative >= ci][1]
+    prior <- posterior
+}
+
+#Plotting
+plot(1:30, mode, xaxs='i', yaxs='i', type="o", lwd = 1.5, col = 'darkblue', main="Mode and 95% C.I. Sequential analysis", cex.main=1.5, xlim=c(0.5,30.5), ylim=c(-0.1,1), xlab="Flips", ylab="Mode", cex.lab=1.2, las = 1)
+
+polygon(c(1:30, 30:1), c(p1, rev(p2)), col = rgb(0.596, 1, 0.98, alpha=0.3), border = NA)                    
+lines(1:30, p1, lty='dashed', lwd = 1.2, col='green')
+lines(1:30, p2, lty='dashed', lwd = 1.2, col='green')
+points(30, mode[30], pch=19, col='navy',)
+legend('topright', col=c("darkblue", "navy", "green"), lty=c('solid', 'blank', 'dashed'), pch=c(1,19,NA), bty='n', cex=1, legend = c("Mode evolution", parse(text = paste0(' Mode[Final] == ', round(mode[30], 3))), "C.I. Boundaries"))
+grid()
+```
+
+```{r}
+cat("Beta prior, one-step analysis:", '\n')
+cat("Mode = ", mode_beta,"\n95%C.I. = [", p1_beta, "; ", p2_beta,"]", '\n\n')
+cat("Uniform prior, one-step analysis", '\n')
+cat("Mode = ", mode_flat,"\n95%C.I. = [", p1_flat, "; ", p2_flat,"]", '\n\n')
+cat("Sequential anlysis", '\n')
+cat("Mode = ", mode[30],"\n95%C.I. = [", p1[30], "; ", p2[30],"]")
+
+#Sequential analysis contributes in increasing the knowledge on the dataset. For this reason the credibility intervals become narrower and the mode becomes progressively similar to the "true" value 0.5. The final result is almost the same to the one obtained with the whole data.
+#The credibility interval is a bit narrower using the beta prior, while for the uniform prior and the sequential analysis, the same boundaries are obtained.
+```
