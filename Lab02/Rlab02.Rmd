@@ -1,0 +1,361 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+library(tidyverse)
+library(plotly)
+library(Hmisc)
+library(GoFKernel)
+#library(HDInterval)
+```
+
+```{r}
+#EXERCISE 1
+
+x <- c(15.58, 15.9, 16, 16.1, 16.2)
+p_1 <- c(0.15, 0.21, 0.35, 0.15, 0.14)
+p_2 <- c(0.14, 0.05, 0.64, 0.08, 0.09)
+
+meas <- tibble(x, p_1, p_2)
+meas
+
+#These work as well
+#expect_1 <- sum(meas$x * meas$p_1)
+#expect_2 <- sum(meas$x * meas$p_2)
+
+expect_1 <- weighted.mean(meas$x, meas$p_1)
+expect_2 <- weighted.mean(meas$x, meas$p_2)
+var_1 <- wtd.var(meas$x, meas$p_1, normwt=TRUE)
+var_2 <- wtd.var(meas$x, meas$p_2, normwt=TRUE)
+
+sprintf("Expectation value with first method: %f", expect_1)
+sprintf("Variance with first method: %f", var_1)
+sprintf("Expectation value with second method: %f", expect_2)
+sprintf("Variance with second method: %f", var_2)
+```
+
+```{r}
+#EXERCISE 2
+
+#Generating 50 exponential randomly distributed samples with rate 1/30
+rate <- 1/30
+wait_sim <- rexp(50, rate = rate)
+#wait_sim
+
+fig <- plot_ly(x = wait_sim, type = "histogram", marker = list(color = "teal", line = list(color             = "rgb(8,48,107)", width = 2))) %>%
+       layout(title = 'Histogram of waiting time, n=50', xaxis =list(title = "Time [min]"), yaxis =          list(title = "Number of people"))
+
+fig
+```
+
+```{r}
+p_less_10 <- pexp(10, rate = rate)
+sprintf("The probability for a patient to wait less than 10 minutes is: %f", p_less_10)
+
+exp_area <- function(rate = 1, lb, ub, acolor = "lightgray", ...) {
+    x <- seq(0, 12/rate, 0.01) 
+    
+    if (missing(lb)) {
+       lb <- min(x)
+    }
+    if (missing(ub)) {
+        ub <- max(x)
+    }
+
+    x2 <- seq(lb, ub, length = 100)    
+    plot(x, dexp(x, rate = rate), type = "n", ylab = "")
+   
+    y <- dexp(x2, rate = rate)
+    polygon(c(lb, x2, ub), c(0, y, 0), col = acolor)
+    lines(x, dexp(x, rate = rate), type = "l", ...)
+}
+
+exp_area(rate = rate, lb = 0, ub = 10, acolor = "navy")
+arrows(50, 0.023, 5, 0.010, length = 0.1, lwd = 2)
+text(50, 0.025, "28,35%", col = "black", cex = 1.2)
+```
+
+```{r}
+sim_ave_wait <- mean(wait_sim)
+sprintf("The average waiting time for simulated data is: %f" ,sim_ave_wait)
+
+th_ave_wait <- 1/rate
+sprintf("The theoretical average waiting time is: %f" ,th_ave_wait)
+
+comp_ave_wait <- function(l, u, r, stp, ...){
+    ax <- seq(from = l, to = u, by = stp)
+    f <- sum(ax*dexp(ax, rate = r))
+    return(f)
+}
+sprintf("The average waiting time obtained by manipulating probability distributions is: %f", comp_ave_wait(0, 1000, rate, 1)) #Setting higer values of u it is possible to get more precise results
+
+#This does not work because qexp(0.5, rate) gives the median value, not the average
+#sprintf("The average waiting time obtained by manipulating probability distributions is: %f" , qexp(0.5, rate = rate))
+
+x <- seq(from = 0, to = 160, by = 0.1)
+hist(x = wait_sim, main = "Histogram of waiting time, n = 50", xlab = "Time [min]", prob = TRUE)
+lines(x, dexp(x, rate = rate), col = "red", lwd = 2)
+```
+
+```{r}
+p_more_60 <- pexp(60, 1/30, lower.tail = FALSE)
+#Equivalently
+#p_more_60 <- 1 - pexp(60, 1/30)
+sprintf("The probability for a patient to wait more than 1 hour is: %f", p_more_60)
+
+exp_area(rate = rate, lb = 60, acolor = "navy")
+arrows(75, 0.013, 75, 0.001, length = 0.1, lwd = 2)
+text(75, 0.015, "13,53%", col = "black", cex = 1.2)
+```
+
+```{r}
+#EXERCISE 3
+
+lambda <- 1/3
+n <- 0:15
+
+p1 <- plot_ly(x = n, y = dpois(n, lambda = lambda), type = "scatter", mode = "lines+markers") %>%         
+      layout(title="<b>Probability distribution function</b>", xaxis=list(title="n"),                       yaxis=list(title="Probability"))
+
+p2 <- plot_ly(x = n, y = ppois(n, lambda = lambda), type = "scatter", mode = "lines+markers") %>%         
+      layout(title="<b>Cumulative distribution function</b>", xaxis=list(title="n"),                        yaxis=list(title="Cumulative probability"))
+
+#Need to usa "plotly::subplot" instead of "subplot" because Hmisc library too contains a function called "subplot"  
+fig <- plotly::subplot(p1, p2, titleY = TRUE, titleX = TRUE, margin = 0.05, which_layout = "Merge") 
+
+fig <- fig %>% layout(title = 'Poisson distribution functions with lambda = 1/3')
+
+annotations = list( 
+  list( 
+    x = 0.2,  
+    y = 1.0,  
+    text = "Probability distribution function",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.8,  
+    y = 1,  
+    text = "Cumulative distribution function",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  )
+)
+
+fig <- fig %>%layout(annotations = annotations) 
+
+fig
+```
+
+```{r}
+#The probability of finding at least one error on a specific page is equal to 1 minus the probability of not finding any error
+
+p <- 1 - ppois(0, lambda = lambda)
+sprintf("The probability of finding at least one error on a specific page is: %f", p)
+```
+
+```{r}
+#EXERCISE 4
+
+#This exercise can be explained using the geometric distribution, which gives the probability that the first occurrence of success requires k independent trials, each with success probability p. In our case:
+
+p <- 4/52
+k <- 10
+p_succ_10 <- pgeom(k-1, p, lower.tail = FALSE)
+#Equivalently
+#p_succ_10 <- 1 - pgeom(k-1, p)
+sprintf("The probability of drow an ace after at least 10 trials is: %f", p_succ_10)
+```
+
+```{r}
+#EXERCISE 5
+
+#PDF
+f_5 <- function(c, t){(t < 1)*(0)+(1 < t & t < 2)*(c*(t-1)*(2-t))+(t>2)*(0)}
+
+#CDF
+f_5_c <- function(c, t){
+    f <- c(0)
+    for (j in 2:length(t)){
+        f[j] <- as.numeric(integrate(f_5, lower = t[1], upper = t[j], c=c, subdivisions = 100)[1])
+    }
+    return(f)
+}
+
+#In order to find c analitically we should impose that the integral of the probability distribution function inside its domain is normalized to 1. Doing the calculations we find that:
+c_th <- 6
+sprintf("The analytically calculated value of c is: %f", c_th)
+
+#Instead, computing the integral using R integrate function:
+I <- as.numeric(integrate(f_5, lower = 1, upper = 2, c=1, subdivisions = 100)[1])
+c_comp <- 1/I
+sprintf("The computed value of c, using integrate R function is: %f", c_comp)
+
+#Plotting PDF and CDF
+x <- seq(0, 3, by = 0.01)
+p_1 <- plot_ly(x = x, y = f_5(c_th, x), type = "scatter", mode = "lines") %>%    
+  
+       layout(title="<b>Probability distribution function</b>", xaxis=list(title="Time [hours]"),            yaxis=list(title="Probability distribution"))
+
+p_2 <- plot_ly(x = x, y = f_5_c(c_th, x), type = "scatter", mode = "lines") %>%  
+  
+       layout(title="<b>Cumulative distribution function</b>", xaxis=list(title="Time [hours]"),             yaxis=list(title="Cumulative probability"))
+
+Fig <- plotly::subplot(p_1, p_2, nrows = 2, titleY = TRUE, titleX = TRUE, margin = 0.2, which_layout = "Merge", heights = c(0.5, 0.5), widths = 0.7) 
+
+Fig <- Fig %>% layout(title = 'TOLC-I time distribution functions')
+
+annotations = list( 
+  list( 
+    x = 0.5,  
+    y = 1.0,  
+    text = "Probability distribution function",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.5,  
+    y = 0.4,  
+    text = "Cumulative distribution function",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  )
+)
+
+Fig <- Fig %>%layout(annotations = annotations) 
+
+Fig
+
+#Quantiles function
+inverse <- function (f, l=1, u=2) {function (y) uniroot((function (t) f(t) - y), lower = l, upper = u)[1]}
+f_5_q <- inverse(function(x) {integrate(f_5, lower = 1, upper = x, c=c_th)$value})
+
+#Random sampling function following given PDF
+f_5_r <- function(n_samples){                                                                       
+  y <- c()
+  for (j in 1:n_samples){
+    ru <- runif(1,0,1)
+    y[j]<-f_5_q(ru)$root
+    }
+  return(y)
+}
+hist(f_5_r(20000), breaks=40, freq=FALSE)    #Check whether all is runing properly 
+
+#Probabilities
+p_75 <- as.numeric(integrate(f_5, lower = 1.25, upper = 2, c=c_th, subdivisions = 100)[1])
+sprintf("The probability that the student will finish the test in more than 75 minutes is: %f", p_75)
+
+p_90_120 <- as.numeric(integrate(f_5, lower = 1.5, upper = 2, c=c_th, subdivisions = 100)[1])
+sprintf("The probability that the student will finish the test between 90 and 120 minutes is: %f", p_90_120)
+```
+
+```{r}
+#EXERCISE 6
+
+#PDF
+f_6 <- function(x){(x < 1)*(0)+(1 < x & x < 2)*(2/(x^2))+(x>2)*(0)}
+
+#CDF
+f_6_c <- function(x){
+    f <- c()
+    for (j in x) {
+        f <- append(f, integrate(f_6, lower = 1, upper = j)$value)
+    }
+    return(f)
+}
+
+#Plotting PDF and CDF
+x <- seq(0, 3, by = 0.01)
+p_1 <- plot_ly(x = x, y = f_6(x), type = "scatter", mode = "lines") %>%    
+  
+       layout(title="<b>Probability distribution function</b>", xaxis=list(title="Distance [km]"),           yaxis=list(title="Probability distribution"))
+
+p_2 <- plot_ly(x = x, y = f_6_c(x), type = "scatter", mode = "lines") %>%  
+  
+       layout(title="<b>Cumulative distribution function</b>", xaxis=list(title="Distance [km]"),            yaxis=list(title="Cumulative probability"))
+
+Fig <- plotly::subplot(p_1, p_2, nrows = 2, titleY = TRUE, titleX = TRUE, margin = 0.2, which_layout = "Merge", heights = c(0.5, 0.5), widths = 0.7) 
+
+Fig <- Fig %>% layout(title = 'Tires\' lifetime distribution functions')
+
+annotations = list( 
+  list( 
+    x = 0.5,  
+    y = 1.0,  
+    text = "Probability distribution function",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.5,  
+    y = 0.4,  
+    text = "Cumulative distribution function",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  )
+)
+
+Fig <- Fig %>%layout(annotations = annotations) 
+
+Fig
+
+#Quantiles function
+inverse_6 <- function (f, l=1, u=2) {function (y) uniroot((function (x) f(x) - y), lower = l, upper = u)[1]}
+f_6_q <- inverse_6(function(x) {integrate(f_6, lower = 1, upper = x)$value})
+
+#Random sampling function following given PDF
+f_6_r <- function(n_samples){                                                                       
+  y <- c()
+  for (j in 1:n_samples){
+    ru <- runif(1,0,1)
+    y[j]<-f_6_q(ru)$root
+    }
+  return(y)
+}
+hist(f_6_r(20000), breaks=40, freq=FALSE)    #Check whether all is runing properly 
+
+#Probability
+p_15000 <- as.numeric(integrate(f_6, lower = 1, upper = 1.5, subdivisions = 100)[1])
+sprintf("The probability that the tires will last less than 15000 km is: %f", p_15000)
+
+#Mean value and variance
+rnd_var <- f_6_r(3000) * 10000
+#rnd_var
+ave_6 <- mean(rnd_var)
+var_6 <- mean(rnd_var^2) - (mean(rnd_var)^2)
+sprintf("Mean and variance of 3000 random samples drown from given distribution are: E[X] = %f ; Var[X] = %f", ave_6, var_6)
+```
+
+
+
+
+
