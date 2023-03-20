@@ -1,0 +1,300 @@
+---
+title: "Exercise_01"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+library(tibble)
+library(tidyverse)
+library(plotly)
+#library(ggplot2)
+```
+
+```{r}
+#EXERCISE 1
+
+#Extracting data from csv file
+scottish.lakes <- readr::read_csv("Lakes.csv", col_names=TRUE)
+
+rem <- c("Volume_no", "Area_no", "Length_no", "Maxdepth_no", "Meandepth_no")
+
+scottish.lakes <- scottish.lakes[!(names(scottish.lakes) %in% rem)]
+
+names(scottish.lakes)
+
+scottish.lakes
+
+```
+```{r}
+#Printing max and min values of volume and area
+V_max <- max(scottish.lakes$Volume)
+sprintf("%s measures maximum volume: %f km^3", scottish.lakes[scottish.lakes$Volume == V_max, 1], V_max)
+
+V_min <- min(scottish.lakes$Volume)
+sprintf("%s measures minimum volume: %f km^3", scottish.lakes[scottish.lakes$Volume == V_min, 1], V_min)
+
+A_max <- max(scottish.lakes$Area)
+sprintf("%s measures maximum area: %f km^2", scottish.lakes[scottish.lakes$Area == A_max, 1], A_max)
+
+A_min <- min(scottish.lakes$Area)
+sprintf("%s measures minimum area: %f km^2", scottish.lakes[scottish.lakes$Area == A_min, 1], A_min)
+```
+
+```{r}
+#Sorting the dataframe by descending area values
+scottish.lakes <- scottish.lakes[order(-scottish.lakes$Area), ]
+scottish.lakes
+```
+
+```{r}
+#Printing first 2 largest area lake names
+last_2row <- head(scottish.lakes, n = 2)
+last_2row[1]
+```
+
+```{r}
+#Summing elements of area column
+A_tot <- sum(scottish.lakes$Area)
+sprintf("Total lake areas: %f", A_tot)
+```
+
+```{r}
+#EXERCISE 2
+
+#Extracting data from csv file
+crudeoil_prices <- readr::read_csv("crude-oil-prices.csv", col_names=TRUE)
+crudeoil_prices
+```
+
+```{r}
+plot(crudeoil_prices$Year, crudeoil_prices$`Oil - Crude prices since 1861 (current $)`, main = "Crude oil prices in function of time", xlab = "Year", ylab = "Price [$]", xaxt = "n", pch = 20)
+
+axis(side = 1, at = seq(1860, 2020, by = 10), las=2)
+
+grid()
+
+lines(crudeoil_prices$Year, crudeoil_prices$`Oil - Crude prices since 1861 (current $)`, col = "navy")
+```
+
+```{r}
+price_max <- max(crudeoil_prices$`Oil - Crude prices since 1861 (current $)`)
+sprintf("Maximum price is: %f$", price_max)
+year_max <- crudeoil_prices$Year[crudeoil_prices$`Oil - Crude prices since 1861 (current $)` == price_max]
+sprintf("Year corresponding to maximum price is: %i", year_max)
+```
+
+```{r}
+#Calculating a vector containing the derivatives (160 -1 elements)
+prices <- crudeoil_prices$`Oil - Crude prices since 1861 (current $)`
+l <- length(prices)
+derivative <- prices[-1] - prices[-l]
+
+#Plotting forward derivative (time goes from 1861 to 2020-1=2019)
+plot(crudeoil_prices$Year[-l], derivative, main = "Derivative of crude oil prices with respect to time", xlab = "Year", ylab = "Price per year [$ / year]", xaxt = "n", pch = 20)
+
+axis(side = 1, at = seq(1860, 2020, by = 10), las=2)
+
+grid()
+
+lines(crudeoil_prices$Year[-l], derivative, col = "navy")
+```
+
+```{r}
+#EXERCISE 3
+
+#Extracting data from csv file and putting it into tibble dataframe
+coal_production <- as_tibble(readr::read_csv("coal-production-by-country.csv", col_names=TRUE))
+coal_production
+```
+
+```{r}
+countries <- coal_production[!duplicated(coal_production$Entity), ]
+sprintf("Number of countries in the dataframe is: %i", length(countries$Entity))
+
+#Histogram using barplot
+barplot(table(coal_production$Entity))
+
+#Histogram using ggplot
+#cnt <- as.data.frame(table(coal_production$Entity))
+#cnt
+#ggplot(cnt, aes(x=Var1, y=Freq)) + geom_bar(stat = "identity")
+```
+
+```{r}
+#Filtering by year
+coal_production <- coal_production %>% filter(Year >= 1970)
+coal_production
+
+production <- aggregate(coal_production$`Coal production (TWh)`, by=list(coal_production$Entity), FUN=sum)
+production <- production[order(-production$x),]
+top_production <- production[2:6,] #Starting from the second country because the first is "World"
+sprintf("Top 5 countries for coal production:")
+top_production
+```
+```{r}
+to_plot <- coal_production %>% filter(Entity %in% top_production$Group.1)
+
+fig <- plot_ly(data = to_plot, x = ~Year, y = ~`Coal production (TWh)`, color = ~Entity, colors = "Set1", mode = 'lines+markers') %>% layout(title="<b>Yearly coal production of 5 top countries</b>", legend=list(title=list(text="<b>Countries</b>"))) 
+fig
+
+#Below methods work as well, even if they have poorer aesthetic:
+
+#1
+#for (cntry in top_production$Group.1){
+#  if (to_plot$Entity==cntry){
+#  plot(to_plot$Year, to_plot$`Coal production (TWh)`, main = "Coal production with respect to time", xlab = "Year", ylab = "Coal production [TWh]", xaxt = "n", pch = 20)
+#  }
+#}
+#axis(side = 1, at = seq(1970, 2020, by = 5), las=2)
+
+#2
+#plot(to_plot$Year, to_plot$`Coal production (TWh)`, main = "Coal production with respect to time", xlab = "Year", ylab = "Coal production [TWh]", xaxt = "n", pch = 20)
+#axis(side = 1, at = seq(1970, 2020, by = 5), las=2)
+```
+
+```{r}
+cumulative_production <- aggregate(coal_production$`Coal production (TWh)`, by=list(coal_production$Year), FUN=sum)
+cumulative_production
+
+plot_ly(data = cumulative_production, x = ~Group.1, y = ~x, colors = "Set1", mode = 'lines+markers') %>% layout(title="<b>Cumulative sum of World's coal production over the years</b>", xaxis=list(title="Year"), yaxis=list(title="Coal production (TWh)")) 
+```
+
+```{r}
+#EXERCISE 4
+
+vaccinations <- as_tibble(readr::read_csv("vaccinationsby_manifacturer.csv", col_names=TRUE))
+vaccinations_IT <- vaccinations %>% filter(location == "Italy")
+vaccinations_IT
+```
+
+```{r}
+plot_ly(data = vaccinations_IT, x = ~date, y = ~total_vaccinations, color = ~vaccine, colors = "Set1", mode = 'lines') %>% layout(title="<b>Number of vaccines in Italy as function of time for every manifacturer</b>", legend=list(title=list(text="<b>Manifacturers</b>")))
+```
+
+```{r}
+vax_per_day_IT <- aggregate(vaccinations_IT$total_vaccinations, by=list(vaccinations_IT$date), FUN=sum)
+#vax_per_day
+
+plot_ly(data = vax_per_day_IT, x = ~Group.1, y = ~x, colors = "Set1", mode = 'lines') %>% layout(title="<b>Number of vaccines in Italy per day</b>", xaxis=list(title="Date"), yaxis=list(title="Total vaccinations"))
+```
+
+```{r}
+vaccinations_DE <- vaccinations %>% filter(location == "Germany")
+vaccinations_USA <- vaccinations %>% filter(location == "United States")
+#vaccinations_DE
+#vaccinations_USA
+
+vax_per_day_DE <- aggregate(vaccinations_DE$total_vaccinations, by=list(vaccinations_DE$date), FUN=sum)
+vax_per_day_USA <- aggregate(vaccinations_USA$total_vaccinations, by=list(vaccinations_USA$date), FUN=sum)
+#vax_per_day_DE
+#vax_per_day_USA
+```
+
+```{r}
+fig1 <- plot_ly(data = vaccinations_DE, x = ~date, y = ~total_vaccinations, color = ~vaccine, colors = "Set1", mode = 'lines') %>% layout(title="<b>Number of vaccines in Germany as function of time for every manifacturer</b>", legend=list(title=list(text="<b>Manifacturers</b>")))
+
+fig2 <- plot_ly(data = vax_per_day_DE, x = ~Group.1, y = ~x, colors = "Set1", mode = 'lines') %>% layout(title="<b>Number of vaccines in Germany per day</b>", xaxis=list(title="Date"), yaxis=list(title="Total vaccinations"))
+
+fig3 <- plot_ly(data = vaccinations_USA, x = ~date, y = ~total_vaccinations, color = ~vaccine, colors = "Set1", mode = 'lines') %>% layout(title="<b>Number of vaccines in United States as function of time for every manifacturer</b>", legend=list(title=list(text="<b>Manifacturers</b>")))
+
+fig4 <- plot_ly(data = vax_per_day_USA, x = ~Group.1, y = ~x, colors = "Set1", mode = 'lines') %>% layout(title="<b>Number of vaccines in United States per day</b>", xaxis=list(title="Date"), yaxis=list(title="Total vaccinations"))
+
+#creating subplot
+Fig <- subplot(fig1, fig2, fig3, fig4, nrows = 2, titleY = TRUE, titleX = TRUE, margin = 0.1, which_layout = "merge")
+Fig <- Fig %>% layout(title = 'Vaccination data', plot_bgcolor='#e5ecf6', 
+         xaxis = list(zerolinecolor = '#ffff', zerolinewidth = 2, gridcolor = 'ffff'), 
+         yaxis = list(zerolinecolor = '#ffff', zerolinewidth = 2, gridcolor = 'ffff'))
+
+# Update title
+annotations = list( 
+  list( 
+    x = 0.2,  
+    y = 1.0,  
+    text = "<b>Number of vaccines in Germany as function\nof time for every manifacturer</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.8,  
+    y = 1,  
+    text = "<b>Number of vaccines in Germany per day</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.2,  
+    y = 0.4,  
+    text = "<b>Number of vaccines in United States as\nfunction of time for every manifacturer</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),
+  list( 
+    x = 0.8,  
+    y = 0.4,  
+    text = "<b>Number of vaccines in United States per day</b>",  
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ))
+
+Fig <- Fig %>% layout(annotations = annotations) 
+
+Fig
+```
+
+
+```{r}
+vaccines <- as_tibble(readr::read_csv("vaccinations.csv", col_names=TRUE))
+vaccines_EU <- dplyr::filter(vaccines, grepl('OWID_EUN', iso_code))
+#vaccines
+
+plot_ly(data = vaccines_EU, x = ~date, y = ~(total_vaccinations/1000000), colors = "Set1", mode = 'lines') %>% layout(title="<b>Number of total vaccinations in Europe per million, per day</b>", xaxis=list(title="Date"), yaxis=list(title="Total vaccinations per million"))
+```
+
+```{r}
+fig <- plot_ly(data = dplyr::filter(vaccines, grepl('Italy', location)), x = ~date, y = ~daily_vaccinations_raw, colors = "Set1", name = "Raw data", type = "scatter", mode = 'lines') %>% layout(title="<b>Daily vaccinations in Italy as function of time</b>", xaxis=list(title="Date"), yaxis=list(title="Vaccinated people per day"))
+
+fig <- fig %>% add_trace(y = ~daily_vaccinations, name = 'Smoothen data', mode = 'lines') 
+
+fig
+```
+
+```{r}
+fig <- plot_ly(data = dplyr::filter(vaccines, grepl('Italy', location)), x = ~date, y = ~people_vaccinated, colors = "Set1", name = "Vaccinations", type = "scatter", mode = 'lines') %>% layout(title="<b>Vaccinated people in Italy in function of time</b>", xaxis=list(title="Date"), yaxis=list(title="Number of vaccinated people"))
+
+fig <- fig %>% add_trace(y = ~people_fully_vaccinated, name = 'Full vaccinations', mode = 'lines') 
+
+fig
+```
+
+```{r}
+fig <- plot_ly(data = dplyr::filter(vaccines, grepl('Italy', location)), x = ~date, y = ~total_vaccinations, colors = "Set1", name = "Total vaccinations", type = "scatter", mode = 'lines') %>% layout(title="<b>Vaccinations in Italy in function of time</b>", xaxis=list(title="Date"), yaxis=list(title="Number of vaccinations"))
+
+fig <- fig %>% add_trace(y = ~(total_vaccinations-total_boosters), name = 'Non booster vaccinations', mode = 'lines') 
+
+fig <- fig %>% add_trace(y = ~total_boosters, name = 'Booster vaccinations', mode = 'lines') 
+
+fig
+```
+
+
